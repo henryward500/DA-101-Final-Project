@@ -1,0 +1,972 @@
+---
+title: "Ward Anderson Final Project"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+setwd("~/Desktop")
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(Hmisc)
+library(ggthemes)
+library(knitr)
+library(xtable)
+library(pander)
+library(car)
+Year_15 <- read_csv("2015.csv")
+Year_16 <- read_csv("2016.csv")
+Year_17 <- read_csv("2017.csv")
+NBA_14_15 <- read_csv("1415NBAcleaned.csv")
+```
+
+#Part 1: Data tool glossary and exploratory analysis
+Part 1 of my DA101 project uses data from two subjects in order to fullfill the Data tool glossary process and part of my exploratory analysis. To setup part 2 of this project I am exploring World Happiness datasets from 2015 to 2017 ("2015.csv", "2016.csv", and "2017.csv"). In addition to the World Happiness datasets, to demonstrate skills and for data tool glossary, I am using the "1415NBAcleaned.csv" dataset from class as basketball play-by-play data is fun to work with. 
+
+In Part 1, I will be data wrangling the World Happiness Datset to set up the following question in Part 2:
+What predicts a Country's Happiness Score more: A Country's GDP and Trust in the Government or A Country's Generosity, Family, and Life Expectancy?
+
+```{r}
+NBA_14_15 <- NBA_14_15%>%
+  mutate(year = "2014")%>%
+  mutate(HW = ifelse(event_type == "end of game", ifelse(home_score > away_score, 1, 0), 0))%>% 
+  mutate(AW = ifelse(event_type == "end of game", ifelse(away_score >home_score, 1, 0), 0))
+```
+
+```{r}
+NBA_14_15$team <- sub("^", "14", NBA_14_15$team)
+```
+
+```{r}
+#first half data
+FHD <- NBA_14_15%>%
+  filter(date < "2015-1-08")
+```
+
+```{r} 
+#second half data
+SHD <- NBA_14_15%>%
+  filter(date >= "2015-1-08")
+```
+
+####Commands/Wrangling 7)(c.): length in summarise
+```{r}
+FHD_less<- FHD%>%
+  group_by(HT)%>%
+  summarise(FTHW = sum(HW), FTHL = sum(AW), "Three_PM"= length(which(points == 3)), "Two_PM" = length(which(points == 2)), turnovers = sum(event_type == "turnover"), subs = sum(event_type == "sub"), avg_shot_distance = mean(shot_distance, na.rm = TRUE), wins = sum(HW), losses =sum(AW), total_points = sum(points, na.rm = TRUE))
+```
+
+The code chunk above was created to use the length() command inside of the summarise() function to create the variables "Two_PM" and "Three_PM". "Two_Pm" is a variable that stores the total number of 2-point field goals each home team made during the 2014-15 NBA season. Similarily, "Three_PM" is a variable that stores the total number of 3-point field goals each home team made during the 2014-15 NBA season. 
+
+####Commands/Wrangling 6)(a.): Summarise (numeric)
+```{r}
+SHD_less <- SHD%>%
+  group_by(HT)%>%
+  summarise(STHW = sum(HW), STHL = sum(AW), "Three_PM"= length(which(points == 3)), "Two_PM" = length(which(points == 2)), turnovers = sum(event_type == "turnover"), subs = sum(event_type == "sub"), avg_shot_distance = mean(shot_distance, na.rm = TRUE), wins = sum(HW), losses =sum(AW), total_points = sum(points, na.rm = TRUE))
+```
+
+The summarise() (numeric) command is used in the code chunk above to create a variable that contains numeric values. The summarise() command is usually used along with group_by() when creating a new table. The variable "avg_shot_distance" (Average Shot Distance) for Home Teams in the first half of the 2014-15 NBA Season is created in a numeric summarise command as it uses the sum() function on "shot_distance".
+
+####Statistical/Analytical tools 1)/3): Confidence Intervals/One-Sample T-test
+```{r}
+#t.test (one-sample t-test)
+
+t.test(FHD_less$Two_PM)
+```
+
+The code chunk above was created to show a one-sample t-test and confidence interval. The t-test above shows the confidence interval, p-value, and mean for "Two_PM" (Two Pointers Made for Home Teams in the first half of the 2014-15 NBA Season). The confidence interval above indicates that 95% of samples procedures will work. This means that for the t-test of Two_PM we are 95% confident that the range for the number of 2-point shots Home Teams made in the first half of the 2014-15 NBA Season is between 1023.090 and 1099.177. 
+
+A p-value represents the probability that the difference between the sample means (separation) are attributed to luck if the population means are equivalent. The p-value for this t-test is practically 0 (2.2e-16). This tiny p-value means that the difference in Two Point Shots made between NBA Home Teams in the first half of the 2014-15 NBA season is not attributed to luck. As the p-value is tiny, this sample must be a representative sample for the population. Lastly, the t-test also showed the average or "mean" for this sample. The mean for Two Point Shots made between NBA Home Teams in the first half of the 2014-15 NBA season is 1061.133 according to the t-test.
+
+####Statistical/Analytical tools 2): Independent samples T-test
+```{r}
+#t.test (independent samples T-test)
+t.test(FHD_less$subs, SHD_less$subs)
+```
+
+The code chunk above was created to show the independent samples T-test. The independent samples t-tests produced means for "subs", the number of substitutions each home team used in total over the first half (FHD_less) and second half (SHD_less) of the 2014-15 NBA Season and a p-value. The difference in means for this independent samples t-test indicates that during the second half of the 2014-15 NBA season home teams substituted more (1000.033) often than the first half (797.200) of the 2014-15 NBA season. 
+
+A p-value represents the probability that the difference between the sample means (separation) are attributed to luck if the population means are equivalent.The p-value for thhis independent samples t-test is practically 0 (2.224e-11). This tiny p-value means that the difference in substitutions ("subs") amongst home teams in the first half and second half of the 2014-15 NBA season is not attributed to luck. As the p-value is practically 0, this sample must be a represenative sample for the population.
+
+
+####Commands/Wrangling 12): Inner/left join 
+```{r}
+#left join
+Entire_Season_Stats <- left_join(FHD_less, SHD_less, by = c("HT"))
+```
+
+The code chunk above was created to merge the First Half and Second Half Stats for each home team during the 2014-15 NBA season. The left_join() command merges two data tables with the same first column and adds columns at the end. In this case, the left_join() command merged the "FHD_less" and "SHD_less" by the same first column ("HT").
+
+####Commands/Wrangling 1): Table
+```{r}
+table(Entire_Season_Stats$HT)
+```
+
+The table() command was used to display all of the home teams (HT) from the 2014-15 NBA Season. The table() command is good to use with categorical variables (like (HT)) in this dataset. Furthermore, the table() command lets us know how many observations there are for categorical variables. As there are only 30 teams in the NBA, each abbreviated home team (HT) name only has the integer value 1 next to it. 
+
+####Commands/Wrangling 6)(b.)/7)(b.)/10): Summarise (character)/ Mutate with sum()/Remove NA's
+```{r}
+#Data for all home teams in 14-15 season
+NBA_14_15_Home_all <- NBA_14_15%>%
+  group_by(HT)%>%
+  summarise(turnovers = sum(event_type == "turnover"), subs = sum(event_type == "sub"), avg_shot_distance = mean(shot_distance, na.rm = TRUE), wins = sum(HW), losses =sum(AW), total_points = sum(points, na.rm = TRUE))
+  
+```
+
+The summarise() (character) command is used in the code chunk above to create a variable from character values. The Summarise command is usually used along with group_by() when creating a new table. The variable "turnovers" is created in a using a character summarise() command as it uses the sum() of event_type == "turnover" to calculate turnovers for home teams in the 2014-15 NBA season.
+
+In addition to summarising with a character, the code chunk above also mutates with the sum() function. Using mutate() and sum() is accomplished when creating the variables "turnover" and "sub" by taking the sum of both the "sub" event_type (for variable "subs") and "the turnover" event_type (for variable "turnovers"). 
+Additionally, the code chunk above removes NA's for both the average_shot_distance and total_points variables. The na.rm = TRUE argument finds all NA values in a vector and removes them to make calculations easier. In this instance, as not every observation in the play-by-play data had a shot or shot_distance, there are NA's. Thus, the na.rm = TRUE made our calculations much easier by removing missing values. 
+
+####Commands/Wrangling 8): if else
+```{r}
+NBA_14_15_Home_all <- NBA_14_15_Home_all %>%
+  mutate(conference = ifelse((HT == "15TOR")|(HT == "15BOS")|(HT == "15PHI")|(HT == "15CLE")|(HT == "15IND")|(HT == "15MIA")|(HT == "15MIL")|(HT == "15WAS")|(HT == "15DET")|(HT == "15CHA")|(HT == "15NYK")|(HT == "15BKN")|(HT == "15CHI")|(HT == "15ORL")|(HT == "15ATL"),"Eastern", "Western"))
+```
+
+The code chunk above uses the ifelse() command inside of the mutate() function add the variable "conference" to the "NBA_14_15_Home_all" dataset. As there are two conferences in the NBA (Eastern and Western), the command above assigns "Eastern" to all teams in the Eastern Conference in the NBA and "Western" to all teams in the Western Conference in the NBA. 
+
+####Commands/Wrangling 7)(a.)/(d.): Mutate with mean()/Mutate making new variables as functions of existing ones 
+```{r}
+NBA_14_15_H<- NBA_14_15_Home_all%>%
+  mutate(TOPG = turnovers/82)%>%
+  mutate(Subs_PG = subs/82)%>%
+  mutate(PPG = total_points/82)%>%
+  mutate(AVGPPG = mean(PPG))
+```
+
+The code chunk above uses the mutate() command with the mean() function to calculate a home team's AVGPPG (Average Points Per Game). The mutate() function is used to create a new variable. Not only does this code chunk use mutate() with the mean() function, but also makes a new variable (AVGPPG) as a fuction of an existing variable (PPG). In this case AVGPPG was created by taking the mean of PPG (Points per Game). When using the mutate() commmand, the variable name comes before the equal sign (=) and the calculation comes afterward. 
+
+####Commands/Wrangling 9)(a.): Filter (numeric)
+```{r}
+#filtering numerically
+NBA_14_15_bad_TOs <- NBA_14_15_H%>%
+  filter(TOPG >= 14.5)
+```
+
+The code chunk above uses the filter() command to select all observations that have more than or equal to 14.5 Turnovers Per Game (TOPG). In general, the filter command() finds all observations and rows where the case (here: TOPG >= 14.5) is true. The code chunk above is filtering a numeric value as TOPG is a numeric value. 
+
+####Commands/Wrangling 11): Select 
+```{r}
+#selecting columns using select()
+NBA_14_15_bad_TOs_TOPG_only <- NBA_14_15_bad_TOs%>%
+  select(HT, TOPG)
+```
+
+The code chunk above uses the select() command to only choose variables from a data table to keep. In this example, the data table "NBA_14_15_bad_TOs_TOPG_only", was created to use only the variables "team" and "TOPG" (which were taken from the "NBA_14_15_bad_TOs" data table using select()). 
+
+####Visualization 3): Histogram
+```{r}
+#histogram
+NBA_14_15_H%>%
+  ggplot(aes(wins))+
+  geom_histogram(binwidth = 1, fill = "orange", color = "blue")+
+  ggtitle("Histogram of Home Team wins for NBA Teams in the 2014-15 NBA Season")+
+  xlab("Home Team Wins")
+```
+
+The code chunk above shows a histogram of Home Team wins in the first half of the 2014-15 NBA season. The histogram shows the shape, or "distribution" for the wins. The ggplot(aes()) set up the graph's frame, geom_histogram() plotted the histogram, and xlab(), ylab(), and ggtitle() annotated the plot. According to the graph it appears that the distributuion is slightly normal. Looking at the histogram it appears that the majority of teams had between 15 and 35 home wins during the first half of the 2014-15 NBA season.
+
+####Visualization 5): Freqpoly 
+```{r}
+#frequency polygon
+Frequency_Polygon <- NBA_14_15_H%>%
+  ggplot(aes(x=wins))+
+  geom_freqpoly(color = "orange")+
+  ggtitle("Frequency Polygon of Home Team wins for NBA Teams in the 2014-15 NBA Season")+
+  xlab("Home Team Wins")
+Frequency_Polygon
+```
+
+The code chunk above was created to show a frequency polygon of the Home Team wins from the first half of the 2014-15 NBA season. The code remained the same from the previous histogram example, however Histograms use bins and Frequency Polygon uses lines. The ggplot(aes()) set up the graph's frame, geom_freqpoly plotted the histogram, and xlab(), ylab(), and ggtitle() annotated the plot. Furthermore, the geom_freqpoly() command shows the normal counts of a histogram, but use bars instead of using a line. Similar to the histogram of Home Team wins in the 2014-15 NBA season, the majority of teams had between 15 and 35 home wins during the first half of the 2014-15 NBA season.
+
+####Visualization 1): Line plot
+```{r}
+#line plot
+NBA_14_15_H%>%
+  ggplot(aes(TOPG, PPG))+
+  geom_line(color = "orange")+
+  ggtitle("Line plot of Points per Game (PPG) vs. Turnovers per Game (TOPG) for Home Teams in the first half of the 2014-15 NBA Season")+
+  xlab("Turnovers per Game (TOPG)")+
+  ylab("Points per Game (PPG)")
+  
+```
+
+The code chunk above displays a line graph which shows the fluctuation between PPG (Points Per Game) and Turnovers per Game (TOPG) in the 2014-15 NBA Season. In order to create the line, the ggplot() command set up the frame, the geom_line() added a layer, and the xlab(), ylab(), and ggtitle() annotated the line graph. The results of the line graph are interesting. It does not appear that there is a direct relationship between TOPG and PPG. This inference is suppported as NBA teams during the 2014-15 season who average less than 12 turnovers per game score about 95 points per game. Similarily, teams that average more than 16.5 turnovers per game score about 97.5 points per game. Thus, it does not appear that an increase in TOPG will directly increase PPG. 
+
+####Visualization 4): Scatter with geom_smooth(method = "lm")/geom_jitter()
+```{r}
+#scatter w/geom_smooth
+NBA_14_15_H%>%
+  ggplot(aes(Subs_PG, PPG))+
+  geom_jitter(color = "orange")+
+  geom_smooth(method = "lm")+
+  ggtitle("Scatterplot of Points per Game (PPG) vs. Substitutions per Game (Subs_PG) for Home Teams in the first half of the 2014-15 NBA season")+
+  xlab("Substitutions per Game (Subs_PG)")+
+  ylab("Points per Game (PPG)")
+```
+
+The code chunk above plots PPG (Points per game) as a function of Subs_PG (substitutions per game) for home teams in the first half of the 2014-15 NBA Season. The ggplot(aes()) line set up the scatterplot's frame, the geom_jitter() command is used to reduce overplotting, and geom_smooth(method = "lm") plotted a regression line for this function. The plot of PPG as a function of Subs_PG does not reveal much about the relationship between the two variables. The confidence band (grey shaded region around the regression line) represents the 95% confidence interval. Thus, with reasonable confidence we are 95% confident that the grey confidence band contains the true value for the PPG vs Subs_PG function. The plot above appears to show that there are outliers at the data point of about 20.25 Subs_PG, under 105.65 PPG. 
+
+####Visualization 4): Scatter with geom_smooth() (no method = "lm")
+```{r}
+NBA_14_15_H%>%
+  ggplot(aes(Subs_PG, PPG))+
+  geom_point(color = "orange")+
+  geom_smooth()+
+   ggtitle("Scatterplot of Points per Game (PPG) vs. Substitutions per Game (Subs_PG) for Home Teams in the first half of the 2014-15 NBA season")+
+  xlab("Substitutions per Game (Subs_PG)")+
+  ylab("Points per Game (PPG)")
+```
+
+Similar to the previous code chunk, the code chunk above plots PPG (Points per game) as a function of (Subs_PG) substitutions per games for home teams in the first half of the 2014-15 NBA Season. The ggplot(aes()) line set up the scatterplot's frame, the geom_point() command is used to plot the graphs points, and geom_smooth() with no argument is used helps identify patterns. Similar to the previous plot, PPG as a function of Subs_PG does not reveal much about the relationship between the two variables. The confidence band (grey shaded region around the regression line) has gotten larger than the previous scatter plot. Unlike the previous geom_smooth(method = "lm") call, this scatterplot uses basic geom_smooth(). The geom_smooth() command without (method = "lm") is used as a visual tool to help uncover patterns in the plot. Once again, the plot above appears to show that there are outliers at the data pount of about 20.25 Subs_PG, under 105.65 PPG.
+
+```{r}
+#cleaning up datasets (Year_15, Year_16, Year_17) so all have same variable names
+Year_15 <- Year_15%>%
+  rename(Happiness_Rank = HappinessRank)%>%
+  rename(Happiness_Score = HappinessScore)%>%
+  mutate(Year = 2015)
+
+Year_16 <- Year_16%>%
+  rename(Happiness_Rank = HappinessRank)%>%
+  rename(Happiness_Score = HappinessScore)%>%
+  mutate(Year = 2016)
+
+Year_17 <- Year_17%>%
+  rename(Happiness_Rank = HappinessRank)%>%
+  rename(Happiness_Score = HappinessScore)%>%
+  mutate(Year = 2017)
+```
+
+
+
+####Commands/Wrangling 14): Rbind
+```{r}
+#Year_15 to 17 without Year vector
+Year_15_to_17_original <- rbind(Year_15, Year_16, Year_17)
+```
+
+The rbind() command above was used to bind the data tables: Year_15, Year_16, and Year_17 together by row for World Happiness Data. Unlike the cbind() command which merges two datasets by adding columns, the rbind() command by rows. This code chunk made a larger data table containing data from 2015-17. 
+
+####Commands/Wrangling 5): Group_by
+```{r}
+#creating table for Western Europe for Year_15, Year_16, and Year_17
+Year_15_Western_Europe<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Western Europe")
+  
+
+Year_16_Western_Europe<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Western Europe")
+  
+
+Year_17_Western_Europe<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Western Europe")
+ 
+```
+
+In the code chunk above, the group_by() command is used to determine how I want to organize my World Happiness data. I chose to group_by(Country) to group the Country's in order from happiest to least happiest. Additionally, for each year (2015, 2016, 2017) and Region (Australia/New Zealand, Central/Eastern Europe, Eastern Asia, Latin America/Caribbean, Middle East/Northern Africa, North America, Southeastern Asia, Sub-Saharan Africa, and Western Europe) I created an individual table grouping by country. 
+
+####Commands/Wrangling 9)(a.): Filter (character)
+```{r}
+#creating table for Australia and New Zealand for Year_15, Year_16, and Year_17
+Year_15_Australia_New_Zealand<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Australia and New Zealand")
+  
+
+Year_16_Australia_New_Zealand<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Australia and New Zealand")
+ 
+
+Year_17_Australia_New_Zealand<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Australia and New Zealand")
+  
+```
+
+The code chunk above uses the filter() command to select all observations that are in the "Australia and New Zealand" Region in the large dataset Year_16 for World Happiness data. In general, the filter command() finds all observations and rows where the case (here: Region == "Australia and New Zealand") is true. The code chunk above is filtering a character value as Region is a character value. 
+
+```{r}
+#creating table for North America for Year_15, Year_16, and Year_17
+Year_15_North_America<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "North America")
+
+
+Year_16_North_America<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "North America")
+ 
+
+Year_17_North_America<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "North America")
+ 
+```
+
+```{r}
+#creating table for Middle East and Northern Africa for Year_15, Year_16, and Year_17
+Year_15_Middle_East_Northern_Africa<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Middle East and Northern Africa")
+
+
+Year_16_Middle_East_Northern_Africa<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Middle East and Northern Africa")
+
+
+Year_17_Middle_East_Northern_Africa<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Middle East and Northern Africa")
+
+```
+
+
+```{r}
+#creating table for Latin America and Caribbean for Year_15, Year_16, and Year_17
+Year_15_Latin_America_Caribbean<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Latin America and Caribbean")
+
+
+Year_16_Latin_America_Caribbean<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Latin America and Caribbean")
+ 
+
+Year_17_Latin_America_Caribbean<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Latin America and Caribbean")
+  
+```
+
+```{r}
+#creating table for Southeastern Asia for Year_15, Year_16, and Year_17
+Year_15_Southeastern_Asia<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Southeastern Asia")
+ 
+
+Year_16_Southeastern_Asia<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Southeastern Asia")
+  
+
+Year_17_Southeastern_Asia<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Southeastern Asia")
+
+```
+
+```{r}
+#creating table for Sub-Saharan Africa for Year_15, Year_16, and Year_17
+Year_15_Sub_Saharan_Africa<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Sub-Saharan Africa")
+ 
+
+Year_16_Sub_Saharan_Africa<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Sub-Saharan Africa")
+ 
+
+Year_17_Sub_Saharan_Africa<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Sub-Saharan Africa")
+ 
+```
+
+```{r}
+#creating table for Eastern Asia for Year_15, Year_16, and Year_17
+Year_15_Eastern_Asia<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Eastern Asia")
+
+Year_16_Eastern_Asia<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Eastern Asia")
+
+
+Year_17_Eastern_Asia<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Eastern Asia")
+ 
+```
+
+```{r}
+#creating table for Central and Eastern Europe for Year_15, Year_16, and Year_17
+Year_15_Central_Eastern_Europe<- Year_15%>%
+  group_by(Country)%>%
+  filter(Region == "Central and Eastern Europe")
+
+
+Year_16_Central_Eastern_Europe<- Year_16%>%
+  group_by(Country)%>%
+  filter(Region == "Central and Eastern Europe")
+ 
+
+Year_17_Central_Eastern_Europe<- Year_17%>%
+  group_by(Country)%>%
+  filter(Region == "Central and Eastern Europe")
+
+```
+
+```{r}
+#Year_15 to 17 Western Europe
+Year_15_to_17_Western_Europe <- rbind(Year_15_Western_Europe, Year_16_Western_Europe, Year_17_Western_Europe)
+```
+
+```{r}
+#Year_15 to 17 Australia and New Zealand 
+Year_15_to_17_Australia_New_Zealand <- rbind(Year_15_Australia_New_Zealand, Year_16_Australia_New_Zealand, Year_17_Australia_New_Zealand)
+```
+
+```{r}
+#Year_15 to 17 North America
+Year_15_to_17_North_America <- rbind(Year_15_North_America, Year_16_North_America, Year_17_North_America)
+```
+
+```{r}
+#Year_15 to 17 Middle East and Northern Africa
+Year_15_to_17_Middle_East_Northern_Africa <- rbind(Year_15_Middle_East_Northern_Africa, Year_16_Middle_East_Northern_Africa, Year_17_Middle_East_Northern_Africa)
+```
+
+```{r}
+#Year_15 to 17 Latin America and Caribbean
+Year_15_to_17_Latin_America_Caribbean <- rbind(Year_15_Latin_America_Caribbean, Year_16_Latin_America_Caribbean, Year_17_Latin_America_Caribbean)
+```
+
+```{r}
+#Year_15 to 17 Southeastern Asia
+Year_15_to_17_Southeastern_Asia <- rbind(Year_15_Southeastern_Asia, Year_16_Southeastern_Asia, Year_17_Southeastern_Asia)
+```
+
+```{r}
+#Year_15 to 17 Sub-Saharan Africa
+Year_15_to_17_Sub_Saharan_Africa <- rbind(Year_15_Sub_Saharan_Africa, Year_16_Sub_Saharan_Africa, Year_17_Sub_Saharan_Africa)
+```
+
+```{r}
+#Year_15 to 17 Eastern Asia
+Year_15_to_17_Eastern_Asia <- rbind(Year_15_Eastern_Asia, Year_16_Eastern_Asia, Year_17_Eastern_Asia)
+```
+
+```{r}
+#Year_15 to 17 Central and Eastern Europe
+Year_15_to_17_Central_Eastern_Europe <- rbind(Year_15_Central_Eastern_Europe, Year_16_Central_Eastern_Europe, Year_17_Central_Eastern_Europe)
+```
+
+```{r}
+#rbinding: Year_15 to 17 Western Europe, Year_15 to 17 Australia and New Zealand, Year_15 to 17 North America, Year_15 to 17 Middle East and Northern Africa, Year_15 to 17 Latin America and Caribbean, Year_15 to 17 Southeastern Asia, Year_15 to 17 Sub-Saharan Africa, Year_15 to 17 Eastern Asia, and Year_15 to 17 Central and Eastern Europe
+Year_15_to_17_with_year <- rbind(Year_15_to_17_Western_Europe, Year_15_to_17_Australia_New_Zealand, Year_15_to_17_North_America, Year_15_to_17_Middle_East_Northern_Africa, Year_15_to_17_Latin_America_Caribbean, Year_15_to_17_Southeastern_Asia, Year_15_to_17_Sub_Saharan_Africa, Year_15_to_17_Eastern_Asia, Year_15_to_17_Central_Eastern_Europe)
+```
+
+####Commands/Wrangling 3): Glimpse
+```{r}
+#glimpse() on Year_15_to_17_cleaned
+glimpse(Year_15_to_17_with_year)
+```
+
+The glimpse() command above is similar to str() however, it shows the structure of all variables in a table (str() only works for one variable). The use of the glimpse() in the chunk above shows the data type (<chr>, <int>, <dbl>) for each variable (Country, Region, Happiness_Rank, Happiness_Score, Economy, Family, Health, Freedom, Trust, Generosity, and Year) in the "Year_15_to_17_with_year" for World Happiness data from 2015 to 2017.
+
+####Commands/Wrangling 2): Summary
+```{r}
+#summary() on Year_15_to_17_cleaned
+summary(Year_15_to_17_with_year)
+```
+
+The summary() command above was used to display the five-number summary and mean for variables in the "Year_15_to_17_with_year" World Happiness data. The summary command provides the minimum value (Min), first quartile (1st Qu), median (Median), mean (Mean), third quartile (3rd Qu), and maximum value (Max.) for each variable in the dataset. More specifically, the summary() command allowed me to see the crucial information like the range for each variable to keep in mind for my World Happiness data.
+  
+####Visualization 2)/8): Bar/Adding Confidence intervals
+```{r}
+#Bar graph showing Happiness Score of Countries in Southeastern Asia
+Year_15_Southeastern_Asia%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  ggtitle("Bar graph showing Happiness Score of Countries in Southeastern Asia in 2015")
+```
+
+The code chunk above displays a bar graph which shows the Happiness score for Countries in Southeastern Asia in 2015. According to the bar graph, there does not appear to be any specific patterns. However, when comparing countries individually, it appears that Singapore (dark blue) is the happiest country in Southeastern Asia in 2015 with a Happiness Score under 7. In second, Thailand (purple) appears to be the second happiest country in Southeastern Asia in 2015 with a Happiness Score of slightly above 6.5. Lastly in third place, Malaysia (green) appears to be the thrid happiest country in Southeastern Asia in 2015 with a Happiness Score just below 6. 
+
+The notches on top of each bar represent confidence bars. The confidence bars for this graph indicate that there is 95% confidence that the true value for the average Cocaine abuse for each year (individual bar) lies between the confidence bar's range.
+
+
+####Visualization (6): Boxplot
+```{r}
+Year_15_to_17_original%>%
+  ggplot(aes(Region, Happiness_Score))+
+  geom_boxplot(aes(fill = Region, color = Region))+
+  ggtitle("Side-by-side boxplots of Happiness Scores in 2015")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ylab("Happiness Score")
+```
+
+The code chunk above was created to display side-by-side boxplots for the Happiness Scores across all regions in the "Year_15_to_17_original" dataset. The boxplots provide the five numebr summary for each region (the minimum value, first quartile, median, third quartile, and maximum value) and outliers for earch region across the globe from World Happiness data collected from 2015 to 2017. The ggplot(aes()) created the frame, and geom_boxplot() added the necessary layer. According to the graph, Western Europe  has the highest maximum value for Happiness_Score just  above 7.5. The region that has the second-highest maximum value is North America. Lastly, Australia and New Zealand have the third highest happiest score under. It is important to note that there are outliers in Latin America and the Caribbean and Southern Asia that affect the data. 
+
+####Visualization 7): Using color/facet_wrap 
+```{r}
+#Stacked bar graph displaying Happiness Score of Canada (red) and USA (blue) between years 2015-17
+Stat_summary_bar_graph <-
+  Year_15_to_17_North_America%>%
+  ggplot(aes(Region, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar", colour = factor("Country"))+
+  stat_summary(fun.data = "mean_cl_normal", geom ="errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score", x="Region by Year")+
+  ggtitle("Stacked bar graph displaying Happiness Score of Canada (red) and USA (blue) between years 2015-17")+
+  facet_wrap(~Year)
+Stat_summary_bar_graph
+```
+
+The code chunk above was created to show create a stacked barplot to show how the happiness score of Canada and the United States have changed from 2015 to 2017. The stacked barplot contains two colors: red (Canada) and blue (United States). The red tip at the top indicates that Canada from 2015 to 2017 consistenttly had a higher Happiness Score than the United States. It is interesting to note that the Happiness Score's for both Canada and the United States appear to be the same in 2015 and 2016. However in 2017, both Country's Happiness Scores slightly drop.
+
+The facet_wrap() command is used above to show how the Happiness Scores for the North America region by Country (Canada and United States) has changed each year. Generally, the facet_wrap() command is used to break down plots by a certain variable (in this case: Year).
+
+####Commands/Wrangling 13): Sub
+```{r}
+#using sub to put 15 on Country for year_15, 16 on Country for year_16, 17 on Country year_17
+Year_15$Country <- sub("^", "15", Year_15$Country)
+Year_16$Country <- sub("^", "16", Year_16$Country)
+Year_17$Country <- sub("^", "17", Year_17$Country)
+```
+
+The sub() command was used above to add the year (15, 16, or 17) in front of each Country in the "Country" vector to distinguish between the 3 observations for each Country from years: 2015-2017. The sub() command uses a pattern (^), replacement (15, 16, 17 (added at beginning)), and what to look for (Country column/vector in Year_15, Year_16, Year_17). 
+
+####Statistical/Analytical tools 4): Correlation test
+```{r}
+#correlation test
+cor.test(Year_15$Happiness_Score, Year_15$Happiness_Rank)
+```
+
+The code chunk above is used to test the correlation between Happiness_Score and Happiness_Rank in the Year_15 data table. The cor.test() function tests the correlation or "association" between two variables. The correlation coefficient is represented by "cor" and ranges from -1.0 to 1.0. The higher the correlation coefficient (cor is closer to 1.0) the more correlated. The lower the correlation coefficient (cor is clsoe to -1.0) the less correlated. As the cor value displayed above (-0.99) is closer to -1.0, Happiness_Score and Happiness_Rank in 2015 do not appear to be correlated. 
+
+####Statistical/Analytical tools 7): Bivariate regression
+```{r}
+#bivariate regression
+bivariate_lm_of_Year_15 <- lm(data = Year_15, Happiness_Score~Economy)
+summary(bivariate_lm_of_Year_15)
+```
+
+The code chunk is used to create a bivariate regression of Hapiness Score and Economy in the Year_15 (2015) dataset. A bivariate regression produces a linear model only using two variables In this chunk, I chose to test how much the Economy of a Country predicts the Country's Happiness Score. The R-squared produced is 0.6099. This moderate R-squared value means that about 61% of the variabillity in Hapiness_Score is explained by this linear fit for global data from 2015. 
+
+Additionally, the p-value for this linear model is practically 0 (2.2e-16). This means that we can reject the null hypothesis (Ho). Furthermore, as we can reject the null hypothesis and the p-value is low, there is a statistically significant relationship between Economy and Happiness Score. 
+
+####Statistical/Analytical tools 8): Multivariate regression
+```{r}
+#multivariate regression
+multivariate_lm_of_Year_15 <- lm(data = Year_15, Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity)
+summary(multivariate_lm_of_Year_15)
+```
+
+The code chunk is used to create a multivariate regression of Hapiness Score the Year_15 (2015) dataset. A multivariate regression produces a linear model using more than two variables. As a result, multivariate regresssions are better to use than bivariate regressions. In this chunk, I chose to test how much the Economy of a Country, Family score of a country, Health score of a coutnry, Freedom of a country, Trust in the Government of a country, and Generosity score of a country, predicts the Country's Happiness Score. The R-squared produced is 0.7772. This moderately-high R-squared value means that about 78% of the variabillity in Hapiness_Score is explained by this linear fit for global data from 2015. Compared to the previous bivariate regression, the R-squared for the multivariate model (78%) is higher than the bivariate regression (61%) further supporting how multivariable models can be better than bivariate regressions. 
+
+Additionally, the p-value for this linear model is practically 0 (2.2e-16). This means that we can reject the null hypothesis (Ho). Furthermore, as we can reject the null hypothesis and the p-value is low, there is a statistically significant relationship between the scores of Economy, Family, Health, Freedom, Trust, and Generosity on a Country's Happiness Score. 
+
+####Statistical/Analytical tools 5): Confint
+```{r}
+#confint
+confint(multivariate_lm_of_Year_15, "Economy", level = 0.95)
+```
+
+The code chunk above was created to use the confint() statistical function. The confint() functions finds the confidence interval for the parameters for predictive models. In the multi-variable linear regression model "multivariate_lm_of_Year_15" (Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity), I tested the parameter of Economy. If I were to construct another sample using the sampe Happiness data from 2015, I am 95% confident that a 1% increase the Economic strength of a Country (Economy variable), would lead to an increase in Happiness Score between 0.4253663 and 1.295948%.
+
+####Statistical/Analytical tools 6): Predict
+```{r}
+#predict
+Switzerland_Data <- data.frame(Economy = 1.39651, Family = 1.34951, Health = 0.94143, Freedom = 0.66557, Trust = 0.41978, Generosity = 0.29678)
+predict(multivariate_lm_of_Year_15, Switzerland_Data, interval = "predict")
+```
+
+The code chunk above was created to use the predict() statistical function. The predict() function takes a data.frame (Switzerland) containing the values for a multi-variable model (Economy = 1.39651, Family = 1.34951, Health = 0.94143, Freedom = 0.66557, Trust = 0.41978, Generosity = 0.29678), and plugs the data.frame into a model to predict a result. Thus, I plugged in Switzerland's Economy, Family, Health, Freedom, Trust, and Generosity scores into the multi-varaible linear model I created to predict happiness. The result produced 7.213854, is quite accurate as the actualy value for Switzerland's Happiness Score in 2015 was 7.587. 
+
+```{r}
+#adding residuals to Year_15
+Year_15 <- cbind(Year_15, multivariate_lm_of_Year_15$residuals)
+```
+
+####Commands/Wrangling 4): Rename
+```{r}
+#renaming resiudals 
+Year_15 <- Year_15%>%
+  rename(multivariate_residuals = "multivariate_lm_of_Year_15$residuals")
+```
+
+The rename() function was used above to clean up the previous variable name of the residuals from the multi-variable linear model, "multivariate_lm_of_Year_15". The rename command is important because it makes datasets more tidy and allows the programmer to name a variable what they want. Furthermore, for this code chunk, it was important to get rid of the previous name (multivariate_lm_of_Year_15$residuals) using a dollar sign, and make a better name (multivariate_residuals). 
+
+####Statistical/Analytical tools 9): Residual plot
+```{r}
+#residual plot
+Year_15%>%
+  ggplot(aes(Happiness_Score, multivariate_residuals))+
+  geom_jitter(color = "orange", width = 0.5)+
+  geom_smooth(method = "lm")+
+  ggtitle("Scatterplot of residuals from 'multivariate_lm_of_Year_15 model'")+
+  xlab("Happiness Score")+
+  ylab("residuals from 'multivariate_lm_of_Year_15 model'")
+```
+
+The code chunk above was created to display a scatterplot of the residuals from the multivariate regresssion model "multivariate_lm_of_Year_15" (Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity). Creating a scatterplot of the residuals is necessary in order to trust a regression summary. The three factors that Data Analysts/Scientists must pass in order to trust a linear model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The scatterplot above shows that the residuals appear to Homoscedasticity and there is no Auto-Correlation. However, in order to validate these visual-assesments of Homoscedasticity I must use a ncvTest to test the residual plot. 
+
+####Statistical/Analytical tools 10): Residual histogram
+```{r}
+#residual histogram
+Year_15%>%
+  ggplot(aes(multivariate_residuals))+
+  geom_histogram(fill = "orange", color = "blue")+
+  ggtitle("Histogram of residuals from 'multivariate_lm_of_Year_15 model'")+
+  xlab("residuals from 'multivariate_lm_of_Year_15 model'")
+```
+
+The code chunk above was used to create a residual histogram from the multivariable model "multivariate_lm_of_Year_15" (Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity). Creating a histogram of the residuals is necessary in order to trust a regresssion summary. The three factors that Data Analysts/Scientists must pass in order to trust a lienar model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The histogram above shows that residuals appear to be normally-dstributed. However in order to test this visual-assesment of normal distribution, I must use a shapiro.test on the residual histogram. 
+
+####Statistical/Analytical tools 11): Shapiro-wilk test
+```{r}
+#shapiro.test
+shapiro.test(Year_15$multivariate_residuals)
+```
+
+The code chunk above was created to use the shapiro.test() on the residuals from the multivariable model "multivariate_lm_of_Year_15" (Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity). According to the histogram of the residuals from the model, there appears to be normal distribution. A p-value is the probability that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The shapiro.test I conducted on the residuals also supports the normal distribution, as the p-value is high (0.2866) which means that I fail to reject the null hyptohesis (Ho). In regard to a shapiro.test, the null hypothesis means that there is normal distribution of the residuals. Thus, as I fail to reject the null hypothesis due to the high p-value above, the residuals from the "multivariate_lm_of_Year_15" model are normally distributed.
+
+####Statistical/Analytical tools 12): NCV test
+```{r}
+#ncvTest
+ncvTest(lm(multivariate_residuals~Happiness_Score, data = Year_15))
+```
+
+In order to test for homoskedasticity, I used a "ncvTest" of the residuals from 
+the multivariable model "multivariate_lm_of_Year_15" (Happiness_Score~ Economy+Family+Health+Freedom+Trust+Generosity). A p-value is the probability that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The ncvTest above yielded a low p-value (0.01885063), which means that I reject the null hypothesis. As the null hypothesis for a ncvTest is that there is homoskedasticity in the residuals, and I reject the null hypothesis due to our small p-value (0.01885063), the residuals are heteroskedastic and not homoskedastic. 
+
+####Part 1: Conclusion
+According to the exploration above, I discovered a couple of things for Global Happiness Data and NBA Data from the 2014-15 season. In regard to Global Happiness, I discovered that a Country's Happiness Score is not correlated with a Country's Happiness Rank (correlation coefficient = -0.9921053). In regard to Home Teams in the NBA during the first half of the 2014-15 season I discovered that there is no relationship between a Home Team's Substitutions used per game (Subs PG) and a Home Team's Points per game (PPG).
+
+#Part 2: Communicating the answer to a data question
+
+####a)	Provide a one paragraph introduction, professionally written, that gives an overview of the essentials someone will need to know in order to make sense of the data you show
+In this project I will be evaluating World Happiness data for Countries across the world from 2015, 2016, and 2017. The data contains the variables: Happiness_Rank, Happiness_Score, Economy, Family, Health, Freedom, Trust, and Generosity. The "Economy" variable takes into account each country's Gross Domestic Product (GDP), the "Health" variables takes into account a country's Life Expectancy, and the "Trust" variable takes into account citizen's trust in their government. These variables will be used across the countries of the World which include the following 8 regions: Australia and New Zealand, Central and Eastern Europe, Eastern Asia, Latin America and Carribean, the Middle East and Northern Africa, North America, Southeasetern Asia, and Sub-Saharan Africa from the 2015-2017 World Happiness data. Using these variables I am aiming to answer the following question:
+What predicts a Country's Happiness Score more:
+-a. A Country's GDP and Trust in the Government
+-b. A Country's Generosity, Family, and Life Expectancy
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) 
+```{r,include=FALSE}
+Aus_NZ_Bar <-
+  Year_15_to_17_Australia_New_Zealand%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  ggtitle("Bar graph showing Happiness Score of Australia and New Zealand from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r, echo=FALSE}
+Aus_NZ_Bar
+```
+
+The bar graphs above shows the Happiness Scores for Australia and New Zealand from 2015 to 2017. According to the bars (visually), it appears that across all years (2015, 2016, and 2017) Australia and New Zealand have the same Happiness Score of above 7.
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r,include=FALSE}
+Southeastern_Asia_bar <-
+  Year_15_to_17_Southeastern_Asia%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of countries in Southeastern Asia from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r,echo=FALSE}
+Southeastern_Asia_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Southeastern Asia region of the world from 2015 to 2017. According to the graphs above, it appears that across all years (2015, 2016, and 2017) Singapore (dark blue) is the most happiest at around 6.5, followed by Thailand (purple) as the second happiest around 6-6.25, and Malaysia (green) as the third happiest around 6.0.
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) 
+```{r, include=FALSE}
+Sub_Saharan_bar <- 
+  Year_15_to_17_Sub_Saharan_Africa%>% 
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of countries in Sub Saharan Africa from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r, echo=FALSE}
+Sub_Saharan_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Sub-Saharan Africa region of the world from 2015 to 2017. According to the graphs above, in 2015, the happiest country is Mauritius (light blue) with a Happiness Score above 6. In second in 2015, Nigeria (dark blue) was the second happiest country. The third happiest country in Sub-Saharan Africa in 2015 was Zambia (reddish-pink) at about 6.
+
+In 2016, Mauritius (dark blue) again was the happiest country with a Happiness score of above 6. In second in 2016, Somalia (purple) was the second happiest country. The third happiest country in Sub-Saharan Africa in 2016 was Somaliland Region (purple-pink) around 6.
+
+In 2017, Mauritis (dark blue) was the happiest country with a Happiness score of above 6. In second in 2017, Somalia (purple) again was the second happiest country. The third happiest country in Sub-Saharan Africa in 2017 was Nigeria (dark blue) at
+
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r, include=FALSE}
+Central_Eastern_Europe_bar <-
+  Year_15_to_17_Central_Eastern_Europe%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of Central and Eastern Europe from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r, echo=FALSE}
+Central_Eastern_Europe_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Central and Eastern Europe region of the world from 2015 to 2017. According to the graphs above, it appears that in 2015 the Czech Republic (dark green) is the happiest country with a Happiness Score above 6. The second happiest country appears to be tied between Uzbekistan (reddish pink) and Slovakia (reddish purple) with a Happiness Score of 6. In third place, it appears that Maldova (light blue) is the third happiest country in Central and Eastern Europe in 2015.
+
+In 2016, the Czech Republic (dark green) was once again the happiest country with a Happinnes Score of about 6.5. The second happiest country appears to be  Slovakia (reddish purple) with a Happiness Score of 6. Lastly in third place, the third happiest country in 2016 appears to be Uzbekistan (reddish pink) with a Happiness Score just slighly below Slovakia.
+
+In 2017, the Czech Republic (dark green) was once again the happiest country with a Happinnes Score of about 6.6. Once again, the second happiest country appears to be  Slovakia (reddish purple) with a Happiness Score of 6.1. Lastly in third place, the third happiest country in 2016 appears to be Poland (dark blue) with a Happiness Score just slighly below Slovakia of 5.9.
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r,include=FALSE}
+Eastern_Asia_bar <-
+  Year_15_to_17_Eastern_Asia%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of Countries in Eastern Asia from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r, echo=FALSE}
+Eastern_Asia_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Eastern Asia region of the world from 2015 to 2017. According to the graphs above, it appears that for both 2015 and 2016 Taiwan had the highest Happiness Score above 6.0. However in 2017, Taiwan changed names to "Taiwan Province of China" and as a result, Taiwan Province of China has the highest Happiness Score above 6.0 in 2017. In 2016 and 2017, it is interesting to note that both Japan and South Korea tied for the second highest Happiness Score at 6.0. Similarily in both 2016 and 2017, Japan had a higher Happiness Score around 6, while South Korea was slightly below. 
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r, include=FALSE}
+Latin_America_Caribbean_bar <-
+  Year_15_to_17_Latin_America_Caribbean%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of Countries in Latin America from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r,echo=FALSE}
+Latin_America_Caribbean_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Latin America and Caribbean region of the world from 2015 to 2017. According to the graphs above, across all three years (2015, 2016, 2017), Costa Rica (dark green) appears to be the happiest country with a Happiness Score of above 7. The second happiest country in Latin America and Caribbean is Mexico (light blue) with a Happiness Score just behind Costa Rica above 7 for both years. Lastly, Brazil appears to be the third happiest country in Latin America and the Caribbean in 2015, 2016, and 2017.
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r, include=FALSE}
+Middle_East_Northern_Africa_bar <-
+  Year_15_to_17_Middle_East_Northern_Africa%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Bar graph showing Happiness Score of Countries in Middle East and Northern Africa from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r,echo=FALSE}
+Middle_East_Northern_Africa_bar
+```
+
+The bar graphs above shows the Happiness Scores for countries in the Middle East and Northern Africa region of the world from 2015 to 2017. According to the graphs above, it appears that across 2015, 2016, and 2017 that Israel consistently had the highest Happiness Score above 6. In 2017, Oman (light blue) had the second highest Happiness Score just under 6 and Qatar (dark blue) had the third highest Happiness Score just under Oman. 
+
+In both 2016 and 2017, the United Arab Emirates (pinkish red) had the second highest Happiness Score in the Middle East and Northern Africa region. It is interesting to note that it appears that both Qatar (light blue) and Saudia Arabia (purple) are tied for the third highest Happiness Score.
+
+####b)	Provide one polished visual that describes the data in a way relevant to your question (descriptive, not related to your statistical model specifically--not a scatterplot) (cont.)
+```{r, include=FALSE}
+North_America_bar <-
+  Year_15_to_17_North_America%>%
+  ggplot(aes(Country, Happiness_Score, fill = Country))+
+  stat_summary(fun.y = "mean", geom = "bar")+
+  stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", fun.args = list(conf.int = .95), width = 0.35)+
+  theme(legend.position = "none")+
+  labs(y = "Happiness Score")+
+  ggtitle("Bar graph showing Happiness Score of Canada and the United States from 2015 to 2017")+
+  facet_wrap(~Year)
+```
+
+```{r,echo=FALSE}
+North_America_bar
+```
+
+The bar graphs above shows the Happiness Scores for Canada and United States from 2015 to 2017. According to the bars (visually), it appears that across all years (2015, 2016, and 2017) Canada had a higher Happiness Score than the United States. 
+
+The 8 bar charts above provide polished visuals that describe the Happiness Scores of the 8 Regions in the World from Years 2015 to 2017. The 8 Regions of the World according to the datasets are: Australia and New Zealand, Central and Eastern Europe, Eastern Asia, Latin America and Carribean, the Middle East and Northern Africa, North America, Southeasetern Asia, and Sub-Saharan Africa. Each country's Happiness Score (ex: United States in 2017 at 6.5) is comprised of values for each variable used in both of my mutlivariate models below (GDP_Trust_multivariate and Generosity_Family_Health_multivariate): Economy (GDP), Trust (in Government), Generosity, Family, and Health (Life Expectancy). 
+
+####c)	Provide one statistical model (multivariate regression) that you interpret correctly in the text. 
+```{r,include=FALSE}
+GDP_Trust_multivariate <- lm(data = Year_15_to_17_original, Happiness_Score~Economy+Trust)
+```
+
+```{r,echo=FALSE}
+summary(GDP_Trust_multivariate)
+```
+
+In the multivariate linear model above a p-value, R-squared value, y-intercept, and slope are produced for the relationship between Economy+Trust and Happiness_Score for countries across the world from 2015 ot 2017. A p-value is the probability that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The p-value for this multivariate linear model is practicaly 0 (2.2e-16). This means that we can reject the null hypothesis (Ho). Furthermore, as we can reject the null hypothesis and the p-value is low, there is a statistically significant relationship between Economy+Trust and Happiness_Score. The R-squared value for this model is 0.6484. This moderate R-squared value means that 65% of the variabillity in Happiness_Score is explained by this linear fit for World Happiness Data from 2015 to 2017. The y-intercept is provided in the summary table above as "(Intercept)" and is located under Estimate with a value of 3.26328. 
+
+####c)	Provide one statistical model (multivariate regression) that you interpret correctly in the text. (cont.)
+```{r, include=FALSE}
+Generosity_Family_Health_multivariate <- lm(data = Year_15_to_17_original, Happiness_Score~Generosity+Family+Health)
+```
+
+```{r,echo=FALSE}
+summary(Generosity_Family_Health_multivariate)
+```
+
+In the multivariate linear model above a p-value, R-squared value, y-intercept, and slope are produced for the relationship between Generosity+Family+Health and Happiness_Score for countries across the world from 2015-17. A p-value is the probabilllity that if the null hypothesis (Ho) is true that a large spread from the two sample averages would result. The p-value for this multivariate linear model is practically (2.2e-16). This means that we can reject the null hypothesis (Ho). Furthermore as we can reject the null hypothesis and the p-value is low, there is a statistically significant relationship between Generosity+Family+Health and Happiness_Score. The R-squared value for this model is 0.6658. This moderate R-squared value means that 67% of the variabillity in Happiness_Score is explained by this linear fit for World Happiness Data from 2015 to 2017. The y-intercept is provided in the summary table as "(Intercept)" and is located under Estimate with a value of 2.3638. 
+
+```{r, include=FALSE}
+#adding GDP_Trust_multivariate residuals
+Year_15_to_17_original <- cbind(Year_15_to_17_original, GDP_Trust_multivariate$residuals)
+```
+
+```{r, include=FALSE}
+#renaming GDP_Trust_multivariate$residuals
+Year_15_to_17_original <- Year_15_to_17_original%>%
+  rename(GDP_Trust_residuals = "GDP_Trust_multivariate$residuals")
+```
+
+```{r, include=FALSE}
+#adding Generosity_Family_Health_multivariate residuals
+Year_15_to_17_original <- cbind(Year_15_to_17_original, Generosity_Family_Health_multivariate$residuals)
+```
+
+```{r, include=FALSE}
+#renaming Generosity_Family_Health_multivariate$residuals
+Year_15_to_17_original <- Year_15_to_17_original%>%
+  rename(Generosity_Family_Health_residuals = "Generosity_Family_Health_multivariate$residuals")
+```
+
+####d) Provide two polished visuals that specifically support and validate the regression model you have developed (residual and regression line/scatter)  
+```{r,include=FALSE}
+GDP_Trust_residual_scatter <- Year_15_to_17_original%>%
+  ggplot(aes(Happiness_Score, GDP_Trust_residuals))+
+  geom_point(color = "navy")+
+  geom_smooth(method = "lm", color = "gold")+
+  xlab("Happiness Score")+
+  ylab("GDP Trust multivariate residuals")+
+  ggtitle("Scatterplot of GDP Trust multivariate residuals vs. Happiness Score")
+```
+
+```{r,echo=FALSE}
+GDP_Trust_residual_scatter
+```
+
+The plot above was created to display a scatterplot of the residuals from the multivariate regression model "GDP_Trust_multivariate". Creating a scatterplot of the residuals is necessary in order to trust a regression summary. The three factors that Data Analysts/Scientists must pass in order to trust a linear model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The scatterplot above shows that the residuals appear to be Homoscedastic and there is no Auto-Correlation. However, in order to validate these visual-assesments of Homoscedasticity I must use a ncvTest to test the residual plot. 
+
+###d) Provide two polished visuals that specifically support and validate the regression model you have developed (residual and regression line/scatter) (cont.)
+```{r, include=FALSE}
+GDP_Trust_residual_histogram <- Year_15_to_17_original%>%
+  ggplot(aes(GDP_Trust_residuals))+
+  geom_histogram(color = "gold", fill = "navy")+
+  ggtitle("Histogram of GDP Trust residuals")+
+  xlab("GDP Trust residuals")
+```
+
+```{r, echo=FALSE}
+GDP_Trust_residual_histogram
+```
+
+The code chunk above was used to create a residual histogram from the multivariable model "GDP_Trust_multivariate". Creating a histogram of the residuals is necessary in order to trust a regresssion summary. The three factors that Data Analysts/Scientists must pass in order to trust a lienar model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The histogram above shows that residuals appear to be normally-dstributed. However in order to test this visual-assesment of normal distribution, I must use a shapiro.test on the residual histogram. 
+
+###d) Provide two polished visuals that specifically support and validate the regression model you have developed (residual and regression line/scatter) (cont.)
+```{r, include=FALSE}
+Generosity_Family_Health_residual_scatter <- Year_15_to_17_original%>%
+  ggplot(aes(Happiness_Score, Generosity_Family_Health_residuals))+
+  geom_point(color = "dark red")+
+  geom_smooth(method = "lm", color = " gold")+
+  xlab("Happiness Score")+
+  ylab("Generosity Family Health multivariate residuals")+
+  ggtitle("Scatterplot of Generosity Family Health multivariate residuals vs. Happiness Score")
+```
+
+```{r,echo=FALSE}
+Generosity_Family_Health_residual_scatter
+```
+
+The plot above was created to display a scatterplot of the residuals from the multivariate regression model "Generosity_Family_Health_multivariate". Creating a scatterplot of the residuals is necessary in order to trust a regression summary. The three factors that Data Analysts/Scientists must pass in order to trust a linear model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The scatterplot above shows that the residuals appear to be more Homoscedastic on the left side than the right side of the plot. In regard to Auto-Correlation, it appears that the distance the residuals are from the geom_smooth() line appears to be getting smaller and smaller. This could evidence of a pattern. However, in order to validate these visual-assesments of Homoscedasticity I must use a ncvTest to test the residual plot. 
+
+####d) Provide two polished visuals that specifically support and validate the regression model you have developed (residual and regression line/scatter) (cont.)
+```{r,include=FALSE}
+Generosity_Family_Health_residual_histogram <- Year_15_to_17_original%>%
+  ggplot(aes(Generosity_Family_Health_residuals))+
+  geom_histogram(color = "gold", fill = "dark red")+
+  ggtitle("Histogram of Generosity Family Health residuals")+
+  xlab("Generosity Family Health residuals")
+```
+
+```{r,echo=FALSE}
+Generosity_Family_Health_residual_histogram
+```
+
+The code chunk above was used to create a residual histogram from the multivariable model "Generosity_Family_Health_multivariate". Creating a histogram of the residuals is necessary in order to trust a regresssion summary. The three factors that Data Analysts/Scientists must pass in order to trust a lienar model are: Homoskedasticity, No Auto-Correlation, and Normal Distribution of the residuals. The histogram above shows that residuals appear to be normally-dstributed. However in order to test this visual-assesment of normal distribution, I must use a shapiro.test on the residual histogram. 
+
+####d) shapiro.test to test normal distribution of GDP_Trust_residuals
+```{r,echo=FALSE}
+shapiro.test(Year_15_to_17_original$GDP_Trust_residuals)
+```
+
+####d) ncvTest to test homoskedasticity of GDP_Trust_residuals
+```{r,echo=FALSE}
+ncvTest(lm(GDP_Trust_residuals~Happiness_Score, data = (Year_15_to_17_original)))
+```
+
+The shapiro.test and ncvTest above were used to validate the residuals from the multivariate model "GDP_Trust_multivariate" (Happiness_Score~Economy+Trust). This model is colored above using dark blue and gold. According to the histogram of the residuals from the model (GDP_Trust_multivariate), there appears to be normal distribution. A p-value is the probabillity that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The shapiro.test I conducted on the GDP_Trust_residuals also supports the normal distribution, as the p-value is high (0.4069) which means that I fail to reject the null hypothesis (Ho). In regard to a shapiro.test, the null hypothesis means that there is normal distribution of the residuals. Thus, as I fail to reject the null hypothesis due to the high p-value, the residuals from the "GDP_Trust_multivariate" model are normally distributed.
+
+In order to test for homeoskedasticity, I used a "ncvTest" of the residuals from the multivariable model "GDP_Trust_multivariate" (Happiness_Score~Economy+Trust). A p-value is the probability that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The ncvTest for "GDP_Trust_multivariate" model yielded a high p-value (0.7534981), which means that I fail to reject the null hypothesis. As the null hypothesis for a ncvTest is that there is homoskedasticity in the residuals, and as I fail to reject the null hypothesis due to the large p-value (0.7534981), there residuals are homoskedastic.
+
+####d) shapiro.test to test normal distribution of Generosity_Family_Health_residuals
+```{r, echo=FALSE}
+shapiro.test(Year_15_to_17_original$Generosity_Family_Health_residuals)
+```
+
+####d) ncvTest to test homoskedasticity of Generosity_Family_Health_residuals
+```{r, echo=FALSE}
+ncvTest(lm(Generosity_Family_Health_residuals~Happiness_Score, data = (Year_15_to_17_original)))
+```
+
+The shapiro.test and ncvTest above were used to validate the residuals from the multivariate model "Generosity_Family_Health_multivariate" (Happiness_Score~Generosity+Family+Health). This model is colored above using dark red and gold. According to the histogram of the residuals from the model (Generosity_Family_Health_multivariate), there appears to be normal distribution. A p-value is the probabillity that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The shapiro.test I conducted on the Generosity_Family_Health_residuals also supports the normal distribution, as the p-value is high (0.5465), I fail to reject the null hypothesis (Ho). In regard to a shapiro.test, the null hypothesis means that there is normal distribution of the residuals. Thus, as I fail to reject the null hypothesis due to the high p-value, the residuals from the Generosity_Family_Health_multivariate model are normally distributed.
+
+In order to test for homeoskedasticity, I used a "ncvTest" of the residuals from the multivariable model "Generosity_Family_Health_multivariate" (Happiness_Score~Generosity+Family+Health). A p-value is the probability that if the null hypothesis (Ho) is true, that a large spread from the two sample averages would result. The ncvTest for "Generosity_Family_Health_multivariate" model yielded a small p-value (1.278816e-05), which means that I reject the null hypothesis. As the null hypothesis for a ncvTest is that there is homoskedasticity in the residuals, and I reject the null hypothesis due to the low p-value (1.278816e-05), there residuals are not homoskedastic, but heteroskedastic. 
+
+####e) Provide one paragraph concluding about the data: what does it tell us, what are the limitations to this data/model, and what is one future direction you could envision for future data analysts. 
+In conclusion, the data used from the World Happiness Report from 2015 to 2017 tells us the ranking of the Happiness of countries across the world. This metric can be be used by Social Scientists to do a more in-depth research project regarding each country and why it received that ranking (in addition to factors such as: Happiness_Score, Economy, Family, Health, Freedom, Trust, and Generosity). To answer my original question (What predicts a Country's Happiness Score more: a Country's GDP and Trust in the Government or a Country's Generosity, Family, and Life Expectancy). The answer to this question can be seen in the R-squared value of my linear models: GDP_Trust_multivariate and Generosity_Family_Health_multivariate. The R-squared value for the GDP and Trust model (GDP_Trust_multivariate) was slightly less (0.6484) than the R-squared value for the Generosity, Family, and Health model (Generosity_Family_Health_multivariate) at 0.6658. As a result, a Country's Generosity, Family, and Health score have a larger impact on it's Happiness Score than a Country's GDP and Trust in the government.
+
+The dataset I used has its limitations because it only uses 7 variables that factor into a Country's Happiness Ranking. However, I believe there are other factors that can potentially impact a Country's Happiness such as: Married, Unemployment Rate, Hunger Rate, and many more. Thus my linear model only takes into account a few variables. Additionally, In the 8 bar plots above, I noticed that depending on how the data was recorded for Countries from 2015 to 2017, some Countries were either not included (had no bar displayed for their Region/Year) due to the creator of the dataset, or potentially their names changed due to international politics. 
+
+In the future I would advise data analysts to break this data down even more granularly. I would advise them to look at the happiest and unahppiest country in each region and compare across each year; 2015, 2016, and 2017. The two questions I would ask for future analysts would be: 1) What countries are consistently happy or unhappy? and 2) What makes these countries happy or unhappy?
